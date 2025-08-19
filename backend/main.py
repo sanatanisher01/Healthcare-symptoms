@@ -399,6 +399,15 @@ async def serve_frontend():
 
                     const resultsContent = `
                         <div class="space-y-8">
+                            ${response.data.source ? `
+                                <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-200">
+                                    <p class="text-sm text-purple-700 flex items-center">
+                                        <i class="fas fa-robot text-purple-600 mr-2"></i>
+                                        <strong>Analysis Source:</strong> ${response.data.source}
+                                    </p>
+                                </div>
+                            ` : ''}
+                            
                             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl">
                                 <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                     <i class="fas fa-search text-blue-600 mr-3"></i>Possible Diagnoses
@@ -584,6 +593,7 @@ async def check_symptoms(request: dict, github_username: str = None):
     # Try Hugging Face API first
     try:
         if HF_API_TOKEN:
+            print(f"🤖 Attempting Hugging Face API for symptoms: {symptoms_lower}")
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             prompt = f"Medical symptom analysis for {age_group} {gender}: {symptoms_lower}. Provide possible diagnoses and recommendations."
             
@@ -597,11 +607,14 @@ async def check_symptoms(request: dict, github_username: str = None):
             }
             
             response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
+            print(f"🔍 HF API Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
+                print(f"📊 HF API Result: {result}")
                 if result and len(result) > 0 and 'generated_text' in result[0]:
                     ai_response = result[0]['generated_text'].strip()
+                    print(f"✅ Using Hugging Face AI Response: {ai_response[:100]}...")
                     
                     # Parse AI response into diagnoses and recommendations
                     lines = ai_response.split('\n')
@@ -621,11 +634,16 @@ async def check_symptoms(request: dict, github_username: str = None):
                             recommendations.append(line.replace('-', '').replace('*', '').strip())
                     
                     if diagnoses and recommendations:
-                        return {"diagnoses": diagnoses[:4], "recommendations": recommendations[:5]}
+                        return {"diagnoses": diagnoses[:4], "recommendations": recommendations[:5], "source": "Hugging Face AI"}
+            else:
+                print(f"❌ HF API failed with status: {response.status_code}, Response: {response.text}")
+        else:
+            print("⚠️ No Hugging Face API token found")
     except Exception as e:
-        print(f"HF API error: {e}")
+        print(f"❌ HF API error: {e}")
     
     # Fallback to enhanced rule-based analysis
+    print("🔄 Using fallback rule-based analysis")
     if any(word in symptoms_lower for word in ['difficulty breathing', 'shortness of breath', 'breathless', 'breathing problem', 'can\'t breathe']):
         diagnoses = ["Asthma", "Respiratory Infection", "Anxiety/Panic Attack", "Allergic Reaction"]
         recommendations = [
@@ -677,7 +695,7 @@ async def check_symptoms(request: dict, github_username: str = None):
             "Keep a symptom diary to help with diagnosis"
         ]
     
-    return {"diagnoses": diagnoses, "recommendations": recommendations}
+    return {"diagnoses": diagnoses, "recommendations": recommendations, "source": "Rule-based fallback"}
 
 if __name__ == "__main__":
     import uvicorn
