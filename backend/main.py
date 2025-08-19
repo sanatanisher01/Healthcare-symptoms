@@ -44,28 +44,54 @@ HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 @app.post("/verify-star")
 async def verify_star(request: StarCheckRequest):
     """Check if user has starred the repository"""
+    username = request.github_username.strip()
+    
+    # Test bypass
+    if username.lower() in ["test", "demo"]:
+        return {"starred": True, "message": "Test access granted!"}
+    
+    # Special bypass for repo owner
+    if username.lower() == "sanatanisher01":
+        return {"starred": True, "message": "Repository owner access granted!"}
+    
     try:
-        username = request.github_username.strip().lower()
+        # First check if user exists
+        user_url = f"https://api.github.com/users/{username}"
+        headers = {"User-Agent": "MediCheck-App/1.0"}
         
-        # Test bypass
-        if username in ["test", "demo"]:
-            return {"starred": True, "message": "Test access granted!"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+        
+        print(f"Checking user: {username}")
+        user_response = requests.get(user_url, headers=headers, timeout=15)
+        print(f"User API status: {user_response.status_code}")
+        
+        if user_response.status_code != 200:
+            return {"starred": False, "message": f"GitHub user '{username}' not found"}
         
         # Check if user starred the repo
         star_url = f"https://api.github.com/users/{username}/starred/sanatanisher01/Healthcare-symptoms"
-        headers = {"User-Agent": "MediCheck-App"}
-        if GITHUB_TOKEN:
-            headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+        star_response = requests.get(star_url, headers=headers, timeout=15)
         
-        star_response = requests.get(star_url, headers=headers, timeout=10)
+        print(f"Star API status: {star_response.status_code}")
+        print(f"Rate limit remaining: {star_response.headers.get('X-RateLimit-Remaining', 'unknown')}")
         
         if star_response.status_code == 204:
             return {"starred": True, "message": "Access granted!"}
-        else:
+        elif star_response.status_code == 404:
             return {"starred": False, "message": "Repository not starred. Please star it first!"}
+        elif star_response.status_code == 403:
+            return {"starred": False, "message": "Rate limit exceeded. Try again later."}
+        else:
+            return {"starred": False, "message": f"Verification failed (Status: {star_response.status_code})"}
             
+    except requests.exceptions.Timeout:
+        return {"starred": False, "message": "Request timeout. Please try again."}
+    except requests.exceptions.ConnectionError:
+        return {"starred": False, "message": "Connection error. Check your internet."}
     except Exception as e:
-        return {"starred": False, "message": "Network error. Please try again."}
+        print(f"Star verification error: {str(e)}")
+        return {"starred": False, "message": f"Error: {str(e)[:50]}..."}
 
 @app.post("/check-symptoms")
 async def check_symptoms(request: SymptomRequest, github_username: str = None):
@@ -75,16 +101,16 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
         raise HTTPException(status_code=403, detail="GitHub username required")
     
     # Test bypass
-    if github_username.lower() in ["test", "demo"]:
-        pass  # Skip verification for test users
+    if github_username.lower() in ["test", "demo", "sanatanisher01"]:
+        pass  # Skip verification for test users and repo owner
     else:
         # Verify star
         try:
             url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
-            headers = {"User-Agent": "MediCheck-App"}
+            headers = {"User-Agent": "MediCheck-App/1.0"}
             if GITHUB_TOKEN:
-                headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-            star_response = requests.get(url, headers=headers, timeout=10)
+                headers["Authorization"] = f"token {GITHUB_TOKEN}"
+            star_response = requests.get(url, headers=headers, timeout=15)
             
             if star_response.status_code != 204:
                 raise HTTPException(status_code=403, detail="Please star the repository first")
