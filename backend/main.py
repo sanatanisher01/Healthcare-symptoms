@@ -22,7 +22,7 @@ async def serve_frontend():
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["*"],  # Allow all origins for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,9 +126,7 @@ def parse_ai_response(response_text: str) -> dict:
         "recommendations": recommendations if recommendations else ["Consult a healthcare professional"]
     }
 
-@app.get("/")
-async def root():
-    return {"message": "MediCheck API is running"}
+
 
 @app.post("/verify-star")
 async def verify_star(request: StarCheckRequest):
@@ -136,30 +134,40 @@ async def verify_star(request: StarCheckRequest):
     try:
         # Check if user starred the repo
         url = f"https://api.github.com/users/{request.github_username}/starred/sanatanisher01/Healthcare-symptoms"
-        response = requests.get(url, timeout=10)
+        headers = {"User-Agent": "MediCheck-App"}
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        print(f"GitHub API response: {response.status_code}")
+        print(f"Response text: {response.text[:200]}")
         
         if response.status_code == 204:
             return {"starred": True, "message": "Access granted!"}
+        elif response.status_code == 404:
+            return {"starred": False, "message": "User not found or repository not starred"}
         else:
             return {"starred": False, "message": "Please star the repository to access the app"}
-    except:
+    except Exception as e:
+        print(f"Star verification error: {e}")
         return {"starred": False, "message": "Unable to verify. Please try again."}
 
-@app.post("/check-symptoms", response_model=SymptomResponse)
+@app.post("/check-symptoms")
 async def check_symptoms(request: SymptomRequest, github_username: str = None):
     """Analyze symptoms - requires GitHub star verification"""
     
     # Verify star first
-    if github_username:
-        try:
-            url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
-            response = requests.get(url, timeout=5)
-            if response.status_code != 204:
-                raise HTTPException(status_code=403, detail="Please star the repository first")
-        except requests.RequestException:
-            raise HTTPException(status_code=403, detail="Unable to verify star status")
-    else:
+    if not github_username:
         raise HTTPException(status_code=403, detail="GitHub username required")
+        
+    try:
+        url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
+        headers = {"User-Agent": "MediCheck-App"}
+        star_response = requests.get(url, headers=headers, timeout=10)
+        
+        if star_response.status_code != 204:
+            raise HTTPException(status_code=403, detail="Please star the repository first")
+    except requests.RequestException as e:
+        print(f"Star verification error: {e}")
+        raise HTTPException(status_code=403, detail="Unable to verify star status")
     """Analyze symptoms and return possible diagnoses and recommendations"""
     
     # Create prompt for the AI model

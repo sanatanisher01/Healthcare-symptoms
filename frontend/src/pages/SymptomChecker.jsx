@@ -14,18 +14,25 @@ const SymptomChecker = () => {
   const [verifyLoading, setVerifyLoading] = useState(false)
 
   const verifyGitHubStar = async () => {
-    if (!githubUsername) return
+    if (!githubUsername.trim()) {
+      alert('Please enter your GitHub username')
+      return
+    }
     setVerifyLoading(true)
     
     try {
-      const response = await axios.post('/verify-star', { github_username: githubUsername })
+      const response = await axios.post('/verify-star', { github_username: githubUsername.trim() })
+      console.log('Verification response:', response.data)
+      
       if (response.data.starred) {
         setIsVerified(true)
+        alert('✅ Verification successful! You can now use the symptom checker.')
       } else {
-        alert('Please star the repository first: https://github.com/sanatanisher01/Healthcare-symptoms')
+        alert(`❌ ${response.data.message}\n\nPlease star the repository: https://github.com/sanatanisher01/Healthcare-symptoms`)
       }
     } catch (error) {
-      alert('Unable to verify. Please check your username and try again.')
+      console.error('Verification error:', error)
+      alert('❌ Unable to verify. Please check your username and try again.')
     } finally {
       setVerifyLoading(false)
     }
@@ -41,12 +48,12 @@ const SymptomChecker = () => {
     setLoading(true)
     
     try {
-      const response = await axios.post(`/check-symptoms?github_username=${githubUsername}`, formData)
+      const response = await axios.post(`/check-symptoms?github_username=${encodeURIComponent(githubUsername.trim())}`, formData)
       setResults(response.data)
     } catch (error) {
       console.error('Error:', error)
       if (error.response?.status === 403) {
-        alert('Please star the repository: https://github.com/sanatanisher01/Healthcare-symptoms')
+        alert('❌ Star verification failed. Please star the repository: https://github.com/sanatanisher01/Healthcare-symptoms')
         setIsVerified(false)
       } else {
         setResults({
