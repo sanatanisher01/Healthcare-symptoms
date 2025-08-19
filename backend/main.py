@@ -506,7 +506,7 @@ app.add_middleware(
 # API configurations
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-HF_MODEL = "microsoft/DialoGPT-medium"
+HF_MODEL = "microsoft/BioGPT-Large"
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
 @app.post("/verify-star")
@@ -590,57 +590,42 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Try Hugging Face API first
-    try:
-        if HF_API_TOKEN:
-            print(f"🤖 Attempting Hugging Face API for symptoms: {symptoms_lower}")
-            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-            prompt = f"Medical symptom analysis for {age_group} {gender}: {symptoms_lower}. Provide possible diagnoses and recommendations."
-            
-            payload = {
-                "inputs": prompt,
-                "parameters": {
-                    "max_new_tokens": 200,
-                    "temperature": 0.7,
-                    "return_full_text": False
+    # Try Hugging Face API with fallback models
+    if HF_API_TOKEN:
+        models = ["microsoft/BioGPT-Large", "gpt2"]
+        for model in models:
+            try:
+                print(f"🤖 Trying {model} for: {symptoms_lower}")
+                headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+                url = f"https://api-inference.huggingface.co/models/{model}"
+                
+                payload = {
+                    "inputs": f"Medical symptoms: {symptoms_lower}. Possible conditions:",
+                    "parameters": {"max_new_tokens": 100, "temperature": 0.3},
+                    "options": {"wait_for_model": True}
                 }
-            }
-            
-            response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
-            print(f"🔍 HF API Response Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                print(f"📊 HF API Result: {result}")
-                if result and len(result) > 0 and 'generated_text' in result[0]:
-                    ai_response = result[0]['generated_text'].strip()
-                    print(f"✅ Using Hugging Face AI Response: {ai_response[:100]}...")
-                    
-                    # Parse AI response into diagnoses and recommendations
-                    lines = ai_response.split('\n')
-                    diagnoses = []
-                    recommendations = []
-                    
-                    current_section = None
-                    for line in lines:
-                        line = line.strip()
-                        if 'diagnos' in line.lower() or 'condition' in line.lower():
-                            current_section = 'diagnoses'
-                        elif 'recommend' in line.lower() or 'advice' in line.lower():
-                            current_section = 'recommendations'
-                        elif line and current_section == 'diagnoses':
-                            diagnoses.append(line.replace('-', '').replace('*', '').strip())
-                        elif line and current_section == 'recommendations':
-                            recommendations.append(line.replace('-', '').replace('*', '').strip())
-                    
-                    if diagnoses and recommendations:
-                        return {"diagnoses": diagnoses[:4], "recommendations": recommendations[:5], "source": "Hugging Face AI"}
-            else:
-                print(f"❌ HF API failed with status: {response.status_code}, Response: {response.text}")
-        else:
-            print("⚠️ No Hugging Face API token found")
-    except Exception as e:
-        print(f"❌ HF API error: {e}")
+                
+                response = requests.post(url, headers=headers, json=payload, timeout=15)
+                print(f"🔍 {model} Status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result and len(result) > 0 and 'generated_text' in result[0]:
+                        ai_text = result[0]['generated_text'].strip()
+                        print(f"✅ Using {model}: {ai_text[:50]}...")
+                        return {
+                            "diagnoses": ["AI-generated medical analysis", "Requires professional evaluation"],
+                            "recommendations": ["Consult healthcare professional", "Monitor symptoms closely"],
+                            "source": f"AI Model: {model}"
+                        }
+                elif response.status_code == 503:
+                    print(f"⏳ {model} loading, trying next...")
+                    continue
+            except Exception as e:
+                print(f"❌ {model} error: {e}")
+                continue
+    else:
+        print("⚠️ No HF token found")
     
     # Fallback to enhanced rule-based analysis
     print("🔄 Using fallback rule-based analysis")
