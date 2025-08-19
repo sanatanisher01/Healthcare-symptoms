@@ -507,6 +507,14 @@ app.add_middleware(
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# Debug environment variables
+print(f"🔑 OpenAI API Key loaded: {bool(OPENAI_API_KEY)}")
+print(f"🔑 GitHub Token loaded: {bool(GITHUB_TOKEN)}")
+if OPENAI_API_KEY:
+    print(f"🔑 API Key starts with: {OPENAI_API_KEY[:10]}...")
+else:
+    print("❌ OPENAI_API_KEY environment variable not found")
+
 @app.post("/verify-star")
 async def verify_star(request: dict):
     """Check if user has starred the repository"""
