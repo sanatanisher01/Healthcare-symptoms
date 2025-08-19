@@ -258,11 +258,11 @@ async def serve_frontend():
                                 </div>
                                 <div class="flex items-center">
                                     <i class="fas fa-envelope text-2xl text-gray-600 mr-4"></i>
-                                    <span class="text-gray-600">support@medicheck.ai</span>
+                                    <a href="mailto:aryansanatani01@gmail.com" class="text-blue-600 hover:underline">aryansanatani01@gmail.com</a>
                                 </div>
                                 <div class="flex items-center">
                                     <i class="fas fa-globe text-2xl text-gray-600 mr-4"></i>
-                                    <span class="text-gray-600">www.medicheck.ai</span>
+                                    <a href="https://healthcare-symptoms.onrender.com" class="text-blue-600 hover:underline">healthcare-symptoms.onrender.com</a>
                                 </div>
                             </div>
                         </div>
@@ -576,22 +576,66 @@ async def check_symptoms(request: dict, github_username: str = None):
         except requests.RequestException:
             raise HTTPException(status_code=403, detail="Unable to verify star status")
     
-    # Enhanced symptom analysis
+    # Enhanced dynamic symptom analysis
     symptoms_lower = request.get("symptoms", "").lower()
     age_group = request.get("age_group", "")
+    gender = request.get("gender", "")
     
-    # Breathing difficulties - requires immediate attention
+    # Try Hugging Face API first
+    try:
+        if HF_API_TOKEN:
+            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+            prompt = f"Medical symptom analysis for {age_group} {gender}: {symptoms_lower}. Provide possible diagnoses and recommendations."
+            
+            payload = {
+                "inputs": prompt,
+                "parameters": {
+                    "max_new_tokens": 200,
+                    "temperature": 0.7,
+                    "return_full_text": False
+                }
+            }
+            
+            response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result and len(result) > 0 and 'generated_text' in result[0]:
+                    ai_response = result[0]['generated_text'].strip()
+                    
+                    # Parse AI response into diagnoses and recommendations
+                    lines = ai_response.split('\n')
+                    diagnoses = []
+                    recommendations = []
+                    
+                    current_section = None
+                    for line in lines:
+                        line = line.strip()
+                        if 'diagnos' in line.lower() or 'condition' in line.lower():
+                            current_section = 'diagnoses'
+                        elif 'recommend' in line.lower() or 'advice' in line.lower():
+                            current_section = 'recommendations'
+                        elif line and current_section == 'diagnoses':
+                            diagnoses.append(line.replace('-', '').replace('*', '').strip())
+                        elif line and current_section == 'recommendations':
+                            recommendations.append(line.replace('-', '').replace('*', '').strip())
+                    
+                    if diagnoses and recommendations:
+                        return {"diagnoses": diagnoses[:4], "recommendations": recommendations[:5]}
+    except Exception as e:
+        print(f"HF API error: {e}")
+    
+    # Fallback to enhanced rule-based analysis
     if any(word in symptoms_lower for word in ['difficulty breathing', 'shortness of breath', 'breathless', 'breathing problem', 'can\'t breathe']):
         diagnoses = ["Asthma", "Respiratory Infection", "Anxiety/Panic Attack", "Allergic Reaction"]
         recommendations = [
             "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if breathing is severely impaired",
             "Sit upright and try to remain calm",
             "Use prescribed inhaler if you have asthma",
-            "Call emergency services (911) if symptoms are severe or worsening",
-            "Avoid known allergens if this could be an allergic reaction"
+            "Call emergency services (911) if symptoms are severe or worsening"
         ]
         if age_group == "Teen":
-            recommendations.append("Consider if this could be anxiety-related - practice slow, deep breathing")
+            recommendations.append("Consider anxiety-related breathing - practice slow, deep breathing")
     elif any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
         diagnoses = ["Common Cold", "Flu", "Upper Respiratory Infection"]
         recommendations = [
@@ -599,23 +643,33 @@ async def check_symptoms(request: dict, github_username: str = None):
             "Monitor temperature regularly",
             "Consult a doctor if symptoms worsen or persist > 3 days"
         ]
-    elif any(word in symptoms_lower for word in ['headache', 'nausea']):
-        diagnoses = ["Tension Headache", "Migraine", "Dehydration"]
+        if age_group == "Senior":
+            recommendations.append("Seniors should seek medical attention sooner for respiratory symptoms")
+    elif any(word in symptoms_lower for word in ['headache', 'nausea', 'dizziness']):
+        diagnoses = ["Tension Headache", "Migraine", "Dehydration", "Viral Infection"]
         recommendations = [
             "Rest in a quiet, dark room",
-            "Stay hydrated",
-            "Consider over-the-counter pain relief",
+            "Stay well hydrated",
+            "Consider over-the-counter pain relief if appropriate",
             "See a doctor if severe or persistent"
         ]
-    elif any(word in symptoms_lower for word in ['chest pain', 'heart']):
-        diagnoses = ["Muscle Strain", "Anxiety", "Gastroesophageal Reflux"]
+    elif any(word in symptoms_lower for word in ['chest pain', 'heart pain']):
+        diagnoses = ["Muscle Strain", "Anxiety", "Gastroesophageal Reflux", "Cardiac Issue"]
         recommendations = [
             "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if chest pain is severe, crushing, or radiating",
             "Call emergency services if accompanied by shortness of breath or dizziness",
             "Avoid physical exertion until evaluated by a healthcare provider"
         ]
+    elif any(word in symptoms_lower for word in ['stomach pain', 'abdominal pain', 'nausea', 'vomiting']):
+        diagnoses = ["Gastroenteritis", "Food Poisoning", "Indigestion", "Appendicitis"]
+        recommendations = [
+            "Stay hydrated with clear fluids",
+            "Avoid solid foods until symptoms improve",
+            "🚨 Seek immediate care if severe abdominal pain, especially lower right side",
+            "Monitor for fever or worsening symptoms"
+        ]
     else:
-        diagnoses = ["Multiple conditions possible - requires professional evaluation"]
+        diagnoses = ["Multiple conditions possible based on symptoms described"]
         recommendations = [
             "Monitor symptoms closely and note any changes",
             "Consult a healthcare professional for proper evaluation",
