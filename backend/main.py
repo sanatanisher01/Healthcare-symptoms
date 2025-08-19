@@ -590,97 +590,69 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Try Hugging Face API with fallback models
-    if HF_API_TOKEN:
-        models = ["microsoft/BioGPT-Large", "gpt2"]
-        for model in models:
-            try:
-                print(f"🤖 Trying {model} for: {symptoms_lower}")
-                headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-                url = f"https://api-inference.huggingface.co/models/{model}"
-                
-                payload = {
-                    "inputs": f"Medical symptoms: {symptoms_lower}. Possible conditions:",
-                    "parameters": {"max_new_tokens": 100, "temperature": 0.3},
-                    "options": {"wait_for_model": True}
-                }
-                
-                response = requests.post(url, headers=headers, json=payload, timeout=15)
-                print(f"🔍 {model} Status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if result and len(result) > 0 and 'generated_text' in result[0]:
-                        ai_text = result[0]['generated_text'].strip()
-                        print(f"✅ Using {model}: {ai_text[:50]}...")
-                        return {
-                            "diagnoses": ["AI-generated medical analysis", "Requires professional evaluation"],
-                            "recommendations": ["Consult healthcare professional", "Monitor symptoms closely"],
-                            "source": f"AI Model: {model}"
-                        }
-                elif response.status_code == 503:
-                    print(f"⏳ {model} loading, trying next...")
-                    continue
-            except Exception as e:
-                print(f"❌ {model} error: {e}")
+    # Force AI model usage only - no fallback
+    if not HF_API_TOKEN:
+        raise HTTPException(status_code=500, detail="AI service unavailable")
+    
+    models = ["microsoft/DialoGPT-medium", "gpt2", "distilgpt2"]
+    
+    for model in models:
+        try:
+            print(f"🤖 Forcing {model} for: {symptoms_lower}")
+            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+            url = f"https://api-inference.huggingface.co/models/{model}"
+            
+            payload = {
+                "inputs": f"Symptoms: {symptoms_lower}. Medical diagnosis:",
+                "parameters": {"max_new_tokens": 80, "temperature": 0.5},
+                "options": {"wait_for_model": True, "use_cache": False}
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            print(f"🔍 {model} Status: {response.status_code}")
+            print(f"📊 Response: {response.text[:200]}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result and len(result) > 0:
+                    if 'generated_text' in result[0]:
+                        ai_text = result[0]['generated_text']
+                        # Remove the input prompt from response
+                        ai_text = ai_text.replace(f"Symptoms: {symptoms_lower}. Medical diagnosis:", "").strip()
+                        
+                        if ai_text and len(ai_text) > 10:
+                            print(f"✅ SUCCESS with {model}: {ai_text[:100]}")
+                            
+                            # Parse AI response
+                            sentences = ai_text.split('.')[0:3]  # Take first 3 sentences
+                            diagnoses = [s.strip() + '.' for s in sentences if s.strip()]
+                            
+                            recommendations = [
+                                "Consult a healthcare professional for accurate diagnosis",
+                                "Monitor symptoms and seek immediate care if they worsen",
+                                "Follow up with your doctor for proper treatment"
+                            ]
+                            
+                            return {
+                                "diagnoses": diagnoses[:3] if diagnoses else ["Medical evaluation needed"],
+                                "recommendations": recommendations,
+                                "source": f"AI Model: {model}"
+                            }
+            
+            # Wait longer for model to load
+            if response.status_code == 503:
+                print(f"⏳ {model} loading, waiting 10 seconds...")
+                import time
+                time.sleep(10)
                 continue
-    else:
-        print("⚠️ No HF token found")
+                
+        except Exception as e:
+            print(f"❌ {model} error: {e}")
+            continue
     
-    # Fallback to enhanced rule-based analysis
-    print("🔄 Using fallback rule-based analysis")
-    if any(word in symptoms_lower for word in ['difficulty breathing', 'shortness of breath', 'breathless', 'breathing problem', 'can\'t breathe']):
-        diagnoses = ["Asthma", "Respiratory Infection", "Anxiety/Panic Attack", "Allergic Reaction"]
-        recommendations = [
-            "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if breathing is severely impaired",
-            "Sit upright and try to remain calm",
-            "Use prescribed inhaler if you have asthma",
-            "Call emergency services (911) if symptoms are severe or worsening"
-        ]
-        if age_group == "Teen":
-            recommendations.append("Consider anxiety-related breathing - practice slow, deep breathing")
-    elif any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
-        diagnoses = ["Common Cold", "Flu", "Upper Respiratory Infection"]
-        recommendations = [
-            "Rest and drink plenty of fluids",
-            "Monitor temperature regularly",
-            "Consult a doctor if symptoms worsen or persist > 3 days"
-        ]
-        if age_group == "Senior":
-            recommendations.append("Seniors should seek medical attention sooner for respiratory symptoms")
-    elif any(word in symptoms_lower for word in ['headache', 'nausea', 'dizziness']):
-        diagnoses = ["Tension Headache", "Migraine", "Dehydration", "Viral Infection"]
-        recommendations = [
-            "Rest in a quiet, dark room",
-            "Stay well hydrated",
-            "Consider over-the-counter pain relief if appropriate",
-            "See a doctor if severe or persistent"
-        ]
-    elif any(word in symptoms_lower for word in ['chest pain', 'heart pain']):
-        diagnoses = ["Muscle Strain", "Anxiety", "Gastroesophageal Reflux", "Cardiac Issue"]
-        recommendations = [
-            "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if chest pain is severe, crushing, or radiating",
-            "Call emergency services if accompanied by shortness of breath or dizziness",
-            "Avoid physical exertion until evaluated by a healthcare provider"
-        ]
-    elif any(word in symptoms_lower for word in ['stomach pain', 'abdominal pain', 'nausea', 'vomiting']):
-        diagnoses = ["Gastroenteritis", "Food Poisoning", "Indigestion", "Appendicitis"]
-        recommendations = [
-            "Stay hydrated with clear fluids",
-            "Avoid solid foods until symptoms improve",
-            "🚨 Seek immediate care if severe abdominal pain, especially lower right side",
-            "Monitor for fever or worsening symptoms"
-        ]
-    else:
-        diagnoses = ["Multiple conditions possible based on symptoms described"]
-        recommendations = [
-            "Monitor symptoms closely and note any changes",
-            "Consult a healthcare professional for proper evaluation",
-            "Seek immediate care if symptoms are severe or worsening",
-            "Keep a symptom diary to help with diagnosis"
-        ]
-    
-    return {"diagnoses": diagnoses, "recommendations": recommendations, "source": "Rule-based fallback"}
+    # If all models fail, return error instead of fallback
+    raise HTTPException(status_code=503, detail="AI models temporarily unavailable")
+
 
 if __name__ == "__main__":
     import uvicorn
