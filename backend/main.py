@@ -14,46 +14,155 @@ app = FastAPI(title="MediCheck API", version="1.0.0")
 async def serve_frontend():
     html_content = """
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>MediCheck - AI Healthcare Symptom Checker</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>MediCheck - AI Healthcare Platform</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            * { font-family: 'Inter', sans-serif; }
+            .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+            .glass { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+            .animate-float { animation: float 6s ease-in-out infinite; }
+            @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+            #three-container { position: absolute; top: 0; left: 0; z-index: -1; }
+        </style>
     </head>
-    <body class="bg-gray-50">
-        <div id="app">
+    <body class="bg-gray-50 overflow-x-hidden">
+        <!-- Navigation -->
+        <nav class="fixed top-0 w-full z-50 glass border-b border-white/20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-heartbeat text-2xl text-blue-600"></i>
+                        <span class="text-xl font-bold text-gray-900">MediCheck</span>
+                    </div>
+                    <div class="hidden md:flex space-x-8">
+                        <a href="#" onclick="showPage('home')" class="nav-link text-gray-700 hover:text-blue-600 transition-colors">Home</a>
+                        <a href="#" onclick="showPage('checker')" class="nav-link text-gray-700 hover:text-blue-600 transition-colors">Symptom Checker</a>
+                        <a href="#" onclick="showPage('about')" class="nav-link text-gray-700 hover:text-blue-600 transition-colors">About</a>
+                        <a href="#" onclick="showPage('contact')" class="nav-link text-gray-700 hover:text-blue-600 transition-colors">Contact</a>
+                    </div>
+                    <div class="md:hidden">
+                        <button onclick="toggleMobileMenu()" class="text-gray-700">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="mobile-menu" class="hidden md:hidden bg-white/90 backdrop-blur-md">
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <a href="#" onclick="showPage('home')" class="block px-3 py-2 text-gray-700">Home</a>
+                    <a href="#" onclick="showPage('checker')" class="block px-3 py-2 text-gray-700">Symptom Checker</a>
+                    <a href="#" onclick="showPage('about')" class="block px-3 py-2 text-gray-700">About</a>
+                    <a href="#" onclick="showPage('contact')" class="block px-3 py-2 text-gray-700">Contact</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Three.js Background -->
+        <div id="three-container"></div>
+
+        <!-- Home Page -->
+        <div id="home-page" class="page min-h-screen pt-16">
+            <div class="relative min-h-screen flex items-center justify-center">
+                <div class="text-center z-10 px-4">
+                    <div class="animate-float mb-8">
+                        <i class="fas fa-stethoscope text-6xl text-blue-600 mb-4"></i>
+                    </div>
+                    <h1 class="text-5xl md:text-7xl font-bold text-gray-900 mb-6">
+                        AI-Powered <span class="text-blue-600">Healthcare</span>
+                    </h1>
+                    <p class="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+                        Get instant symptom analysis and health recommendations powered by advanced AI technology
+                    </p>
+                    <button onclick="showPage('checker')" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full text-lg font-semibold transition-all transform hover:scale-105 shadow-lg">
+                        Start Symptom Check <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Features Section -->
+            <div class="py-20 bg-white">
+                <div class="max-w-7xl mx-auto px-4">
+                    <h2 class="text-4xl font-bold text-center text-gray-900 mb-16">Why Choose MediCheck?</h2>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="text-center p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 hover:shadow-xl transition-all">
+                            <i class="fas fa-brain text-4xl text-blue-600 mb-4"></i>
+                            <h3 class="text-xl font-semibold mb-4">AI-Powered Analysis</h3>
+                            <p class="text-gray-600">Advanced machine learning algorithms analyze your symptoms for accurate insights</p>
+                        </div>
+                        <div class="text-center p-8 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-100 hover:shadow-xl transition-all">
+                            <i class="fas fa-shield-alt text-4xl text-green-600 mb-4"></i>
+                            <h3 class="text-xl font-semibold mb-4">Privacy First</h3>
+                            <p class="text-gray-600">Your health data is never stored. Complete privacy and confidentiality guaranteed</p>
+                        </div>
+                        <div class="text-center p-8 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-100 hover:shadow-xl transition-all">
+                            <i class="fas fa-clock text-4xl text-purple-600 mb-4"></i>
+                            <h3 class="text-xl font-semibold mb-4">Instant Results</h3>
+                            <p class="text-gray-600">Get immediate health insights and recommendations in seconds</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Symptom Checker Page -->
+        <div id="checker-page" class="page hidden min-h-screen pt-20">
             <div class="max-w-4xl mx-auto px-4 py-12">
-                <h1 class="text-4xl font-bold text-center text-gray-900 mb-12">AI Symptom Checker</h1>
+                <div class="text-center mb-12">
+                    <i class="fas fa-user-md text-5xl text-blue-600 mb-4"></i>
+                    <h1 class="text-4xl font-bold text-gray-900 mb-4">AI Symptom Checker</h1>
+                    <p class="text-gray-600">Describe your symptoms and get AI-powered health insights</p>
+                </div>
                 
-                <div id="star-section" class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8 rounded-lg">
-                    <h2 class="text-xl font-semibold text-yellow-800 mb-4">⭐ Star Required</h2>
-                    <p class="text-yellow-700 mb-4">Please star our repository to access the AI symptom checker:</p>
-                    <a href="https://github.com/sanatanisher01/Healthcare-symptoms" target="_blank" class="inline-block bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 mb-4">⭐ Star Repository</a>
-                    
-                    <div class="mb-3">
-                        <p class="text-sm text-yellow-700 mb-2"><strong>Username Format:</strong> Enter only your GitHub username (not full URL)</p>
-                        <p class="text-xs text-yellow-600">✅ Correct: <code class="bg-yellow-100 px-1 rounded">sanatanisher01</code><br/>❌ Wrong: <code class="bg-red-100 px-1 rounded">https://github.com/sanatanisher01</code></p>
+                <div id="star-section" class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 p-8 mb-8 rounded-2xl shadow-lg">
+                    <div class="text-center mb-6">
+                        <i class="fas fa-star text-4xl text-yellow-500 mb-4"></i>
+                        <h2 class="text-2xl font-bold text-gray-900 mb-2">GitHub Star Required</h2>
+                        <p class="text-gray-700">Support our open-source project to access the AI symptom checker</p>
                     </div>
                     
-                    <div class="flex gap-2">
-                        <input type="text" id="username" placeholder="username (e.g., sanatanisher01)" class="flex-1 p-3 border border-gray-300 rounded-lg">
-                        <button onclick="verifyGitHubStar()" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">Verify</button>
+                    <div class="text-center mb-6">
+                        <a href="https://github.com/sanatanisher01/Healthcare-symptoms" target="_blank" 
+                           class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-full font-semibold transition-all transform hover:scale-105 shadow-lg">
+                            <i class="fab fa-github mr-2"></i> Star on GitHub
+                        </a>
+                    </div>
+                    
+                    <div class="max-w-md mx-auto">
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-600 mb-2"><strong>Enter your GitHub username:</strong></p>
+                            <p class="text-xs text-gray-500">✅ Correct: <code class="bg-gray-100 px-2 py-1 rounded">sanatanisher01</code></p>
+                        </div>
+                        <div class="flex gap-3">
+                            <input type="text" id="username" placeholder="GitHub username" 
+                                   class="flex-1 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <button onclick="verifyGitHubStar()" 
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-semibold transition-all">
+                                Verify
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div id="symptom-form" class="bg-white rounded-2xl shadow-xl p-8 mb-8 opacity-50 pointer-events-none">
+                <div id="symptom-form" class="bg-white rounded-2xl shadow-xl p-8 mb-8 opacity-50 pointer-events-none transition-all">
                     <div class="space-y-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Describe your symptoms</label>
-                            <textarea id="symptoms" class="w-full p-4 border border-gray-300 rounded-lg" rows="4" placeholder="e.g., fever, cough, sore throat, headache..."></textarea>
+                            <label class="block text-sm font-semibold text-gray-700 mb-3">Describe your symptoms</label>
+                            <textarea id="symptoms" class="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                                      rows="4" placeholder="e.g., fever, cough, sore throat, headache..."></textarea>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Age Group</label>
-                                <select id="age_group" class="w-full p-3 border border-gray-300 rounded-lg">
+                                <label class="block text-sm font-semibold text-gray-700 mb-3">Age Group</label>
+                                <select id="age_group" class="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500">
                                     <option value="">Select age group</option>
                                     <option value="Child">Child (0-12)</option>
                                     <option value="Teen">Teen (13-19)</option>
@@ -63,8 +172,8 @@ async def serve_frontend():
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-                                <select id="gender" class="w-full p-3 border border-gray-300 rounded-lg">
+                                <label class="block text-sm font-semibold text-gray-700 mb-3">Gender</label>
+                                <select id="gender" class="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500">
                                     <option value="">Select gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
@@ -73,28 +182,173 @@ async def serve_frontend():
                             </div>
                         </div>
                         
-                        <button onclick="checkSymptoms()" class="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-blue-700">⭐ Star Repository First</button>
+                        <button onclick="checkSymptoms()" id="check-btn"
+                                class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 px-6 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg">
+                            ⭐ Star Repository First
+                        </button>
                     </div>
                 </div>
 
                 <div id="results" class="bg-white rounded-2xl shadow-xl p-8 hidden">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Results</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                        <i class="fas fa-clipboard-list text-blue-600 mr-3"></i>Analysis Results
+                    </h2>
                     <div id="results-content"></div>
-                    <div class="mt-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg">
-                        <p class="text-sm text-yellow-800"><strong>Disclaimer:</strong> This is not a medical diagnosis. Please consult a doctor for proper medical advice.</p>
+                    <div class="mt-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-400 rounded-xl">
+                        <p class="text-sm text-gray-800 flex items-center">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                            <strong>Medical Disclaimer:</strong> This is not a medical diagnosis. Always consult healthcare professionals for proper medical advice.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Page -->
+        <div id="about-page" class="page hidden min-h-screen pt-20">
+            <div class="max-w-4xl mx-auto px-4 py-12">
+                <div class="text-center mb-12">
+                    <i class="fas fa-info-circle text-5xl text-blue-600 mb-4"></i>
+                    <h1 class="text-4xl font-bold text-gray-900 mb-4">About MediCheck</h1>
+                    <p class="text-xl text-gray-600">Revolutionizing healthcare with AI technology</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl p-8 mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Our Mission</h2>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        MediCheck is dedicated to making healthcare more accessible through cutting-edge AI technology. 
+                        Our platform provides instant symptom analysis and health recommendations, helping users make 
+                        informed decisions about their health.
+                    </p>
+                    
+                    <div class="grid md:grid-cols-2 gap-8 mt-8">
+                        <div class="p-6 bg-blue-50 rounded-xl">
+                            <i class="fas fa-microscope text-3xl text-blue-600 mb-4"></i>
+                            <h3 class="text-xl font-semibold mb-3">Advanced AI</h3>
+                            <p class="text-gray-600">Powered by state-of-the-art machine learning models trained on medical data</p>
+                        </div>
+                        <div class="p-6 bg-green-50 rounded-xl">
+                            <i class="fas fa-users text-3xl text-green-600 mb-4"></i>
+                            <h3 class="text-xl font-semibold mb-3">Open Source</h3>
+                            <p class="text-gray-600">Built by the community, for the community. Transparent and collaborative development</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Page -->
+        <div id="contact-page" class="page hidden min-h-screen pt-20">
+            <div class="max-w-4xl mx-auto px-4 py-12">
+                <div class="text-center mb-12">
+                    <i class="fas fa-envelope text-5xl text-blue-600 mb-4"></i>
+                    <h1 class="text-4xl font-bold text-gray-900 mb-4">Contact Us</h1>
+                    <p class="text-xl text-gray-600">Get in touch with our team</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-6">Get in Touch</h2>
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <i class="fab fa-github text-2xl text-gray-600 mr-4"></i>
+                                    <a href="https://github.com/sanatanisher01/Healthcare-symptoms" class="text-blue-600 hover:underline">
+                                        GitHub Repository
+                                    </a>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-envelope text-2xl text-gray-600 mr-4"></i>
+                                    <span class="text-gray-600">support@medicheck.ai</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-globe text-2xl text-gray-600 mr-4"></i>
+                                    <span class="text-gray-600">www.medicheck.ai</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-4">Quick Links</h3>
+                            <div class="space-y-2">
+                                <a href="#" onclick="showPage('home')" class="block text-blue-600 hover:underline">Home</a>
+                                <a href="#" onclick="showPage('checker')" class="block text-blue-600 hover:underline">Symptom Checker</a>
+                                <a href="#" onclick="showPage('about')" class="block text-blue-600 hover:underline">About</a>
+                                <a href="https://github.com/sanatanisher01/Healthcare-symptoms" class="block text-blue-600 hover:underline">GitHub</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <script>
-            let isVerified = false;
-            let githubUsername = '';
+            // Global variables
+            let isVerified = localStorage.getItem('medicheck_verified') === 'true';
+            let githubUsername = localStorage.getItem('medicheck_username') || '';
+            let scene, camera, renderer, particles;
 
+            // Initialize Three.js background
+            function initThreeJS() {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                renderer = new THREE.WebGLRenderer({ alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.getElementById('three-container').appendChild(renderer.domElement);
+
+                // Create floating particles
+                const geometry = new THREE.BufferGeometry();
+                const positions = [];
+                const colors = [];
+
+                for (let i = 0; i < 1000; i++) {
+                    positions.push((Math.random() - 0.5) * 2000);
+                    positions.push((Math.random() - 0.5) * 2000);
+                    positions.push((Math.random() - 0.5) * 2000);
+
+                    colors.push(0.3 + Math.random() * 0.7);
+                    colors.push(0.5 + Math.random() * 0.5);
+                    colors.push(1);
+                }
+
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+                const material = new THREE.PointsMaterial({ size: 2, vertexColors: true, transparent: true, opacity: 0.6 });
+                particles = new THREE.Points(geometry, material);
+                scene.add(particles);
+
+                camera.position.z = 1000;
+                animate();
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                particles.rotation.x += 0.0005;
+                particles.rotation.y += 0.001;
+                renderer.render(scene, camera);
+            }
+
+            // Navigation functions
+            function showPage(pageId) {
+                document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
+                document.getElementById(pageId + '-page').classList.remove('hidden');
+                
+                if (pageId === 'checker' && isVerified) {
+                    document.getElementById('star-section').style.display = 'none';
+                    document.getElementById('symptom-form').classList.remove('opacity-50', 'pointer-events-none');
+                    document.getElementById('check-btn').textContent = 'Analyze Symptoms';
+                }
+            }
+
+            function toggleMobileMenu() {
+                document.getElementById('mobile-menu').classList.toggle('hidden');
+            }
+
+            // Star verification with persistence
             async function verifyGitHubStar() {
                 const username = document.getElementById('username').value.trim();
                 if (!username) {
-                    alert('Please enter your GitHub username');
+                    showNotification('Please enter your GitHub username', 'warning');
                     return;
                 }
 
@@ -103,21 +357,28 @@ async def serve_frontend():
                     if (response.data.starred) {
                         isVerified = true;
                         githubUsername = username;
+                        
+                        // Store in localStorage for persistence
+                        localStorage.setItem('medicheck_verified', 'true');
+                        localStorage.setItem('medicheck_username', username);
+                        
                         document.getElementById('star-section').style.display = 'none';
                         document.getElementById('symptom-form').classList.remove('opacity-50', 'pointer-events-none');
-                        document.querySelector('#symptom-form button').textContent = 'Check Symptoms';
-                        alert('✅ Verification successful! You can now use the symptom checker.');
+                        document.getElementById('check-btn').textContent = 'Analyze Symptoms';
+                        
+                        showNotification('✅ Verification successful! You can now use the symptom checker.', 'success');
                     } else {
-                        alert(`❌ ${response.data.message}`);
+                        showNotification(`❌ ${response.data.message}`, 'error');
                     }
                 } catch (error) {
-                    alert('❌ Unable to verify. Please try again.');
+                    showNotification('❌ Unable to verify. Please try again.', 'error');
                 }
             }
 
+            // Symptom checking
             async function checkSymptoms() {
                 if (!isVerified) {
-                    alert('Please verify your GitHub star first!');
+                    showNotification('Please verify your GitHub star first!', 'warning');
                     return;
                 }
 
@@ -126,9 +387,11 @@ async def serve_frontend():
                 const gender = document.getElementById('gender').value;
 
                 if (!symptoms || !age_group || !gender) {
-                    alert('Please fill in all fields');
+                    showNotification('Please fill in all fields', 'warning');
                     return;
                 }
+
+                document.getElementById('check-btn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyzing...';
 
                 try {
                     const response = await axios.post(`/check-symptoms?github_username=${githubUsername}`, {
@@ -136,22 +399,30 @@ async def serve_frontend():
                     });
 
                     const resultsContent = `
-                        <div class="space-y-6">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                    <span class="text-2xl mr-2">🔍</span>Possible Diagnoses
+                        <div class="space-y-8">
+                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-search text-blue-600 mr-3"></i>Possible Diagnoses
                                 </h3>
-                                <div class="space-y-2">
-                                    ${response.data.diagnoses.map(d => `<div class="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">${d}</div>`).join('')}
+                                <div class="space-y-3">
+                                    ${response.data.diagnoses.map(d => `
+                                        <div class="bg-white p-4 rounded-lg border-l-4 border-blue-500 shadow-sm">
+                                            <i class="fas fa-stethoscope text-blue-600 mr-2"></i>${d}
+                                        </div>
+                                    `).join('')}
                                 </div>
                             </div>
                             
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                                    <span class="text-2xl mr-2">💡</span>Recommended Next Steps
+                            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-lightbulb text-green-600 mr-3"></i>Recommended Next Steps
                                 </h3>
-                                <div class="space-y-2">
-                                    ${response.data.recommendations.map(r => `<div class="bg-green-50 p-3 rounded-lg border-l-4 border-green-500">${r}</div>`).join('')}
+                                <div class="space-y-3">
+                                    ${response.data.recommendations.map(r => `
+                                        <div class="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
+                                            <i class="fas fa-check-circle text-green-600 mr-2"></i>${r}
+                                        </div>
+                                    `).join('')}
                                 </div>
                             </div>
                         </div>
@@ -159,10 +430,49 @@ async def serve_frontend():
 
                     document.getElementById('results-content').innerHTML = resultsContent;
                     document.getElementById('results').classList.remove('hidden');
+                    document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
                 } catch (error) {
-                    alert('Error checking symptoms. Please try again.');
+                    showNotification('Error analyzing symptoms. Please try again.', 'error');
+                } finally {
+                    document.getElementById('check-btn').innerHTML = 'Analyze Symptoms';
                 }
             }
+
+            // Notification system
+            function showNotification(message, type) {
+                const notification = document.createElement('div');
+                const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500';
+                
+                notification.className = `fixed top-20 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform`;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => notification.classList.remove('translate-x-full'), 100);
+                setTimeout(() => {
+                    notification.classList.add('translate-x-full');
+                    setTimeout(() => document.body.removeChild(notification), 300);
+                }, 3000);
+            }
+
+            // Initialize on load
+            window.addEventListener('load', () => {
+                initThreeJS();
+                
+                // Check if already verified
+                if (isVerified && document.getElementById('username')) {
+                    document.getElementById('username').value = githubUsername;
+                }
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (camera && renderer) {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                }
+            });
         </script>
     </body>
     </html>
@@ -181,8 +491,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Simple dict-based models to avoid pydantic issues
 
 # API configurations
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
