@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import requests
 import json
 import os
@@ -9,8 +11,15 @@ load_dotenv()
 
 app = FastAPI(title="MediCheck API", version="1.0.0")
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="../frontend/dist"), name="static")
+
 @app.get("/")
-async def root():
+async def serve_frontend():
+    return FileResponse("../frontend/dist/index.html")
+
+@app.get("/api")
+async def api_status():
     return {"message": "MediCheck API is running"}
 
 # CORS middleware
