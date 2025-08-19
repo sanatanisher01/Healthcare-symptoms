@@ -137,7 +137,7 @@ async def test_github(username: str):
         user_url = f"https://api.github.com/users/{username}"
         headers = {"User-Agent": "MediCheck-App"}
         if GITHUB_TOKEN:
-            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+            headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
         user_response = requests.get(user_url, headers=headers, timeout=10)
         
         # Test starred repo API
@@ -208,7 +208,7 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
         url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
         headers = {"User-Agent": "MediCheck-App"}
         if GITHUB_TOKEN:
-            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+            headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
         star_response = requests.get(url, headers=headers, timeout=10)
         
         if star_response.status_code != 204:
@@ -216,7 +216,6 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
     except requests.RequestException as e:
         print(f"Star verification error: {e}")
         raise HTTPException(status_code=403, detail="Unable to verify star status")
-    """Analyze symptoms and return possible diagnoses and recommendations"""
     
     # Create prompt for the AI model
     prompt = f"""You are a medical assistant AI. 
@@ -235,6 +234,52 @@ Format response in JSON:
     if HF_API_TOKEN:
         print("Attempting to use Hugging Face AI model...")
         ai_response = query_huggingface_model(prompt)
+        if ai_response:
+            print("AI model responded successfully")
+            parsed_response = parse_ai_response(ai_response)
+            parsed_response["diagnoses"] = [f"[AI] {d}" for d in parsed_response["diagnoses"]]
+            return SymptomResponse(**parsed_response)
+        else:
+            print("AI model failed, using fallback")
+    else:
+        print("No API token, using fallback")
+    
+    # Fallback response if AI is unavailable
+    print("Using fallback responses (AI not available)")
+    symptoms_lower = request.symptoms.lower()
+    
+    if any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
+        fallback_diagnoses = ["[FALLBACK] Common Cold", "[FALLBACK] Flu", "[FALLBACK] Upper Respiratory Infection"]
+        fallback_recommendations = [
+            "Rest and drink plenty of fluids",
+            "Monitor temperature regularly",
+            "Consult a doctor if symptoms worsen or persist > 3 days"
+        ]
+    elif any(word in symptoms_lower for word in ['headache', 'nausea']):
+        fallback_diagnoses = ["[FALLBACK] Tension Headache", "[FALLBACK] Migraine", "[FALLBACK] Dehydration"]
+        fallback_recommendations = [
+            "Rest in a quiet, dark room",
+            "Stay hydrated",
+            "Consider over-the-counter pain relief",
+            "See a doctor if severe or persistent"
+        ]
+    else:
+        fallback_diagnoses = ["[FALLBACK] Various conditions possible"]
+        fallback_recommendations = [
+            "Monitor symptoms closely",
+            "Consult a healthcare professional for proper evaluation",
+            "Seek immediate care if symptoms are severe"
+        ]
+    
+    return SymptomResponse(
+        diagnoses=fallback_diagnoses,
+        recommendations=fallback_recommendations
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port))
         if ai_response:
             print("AI model responded successfully")
             parsed_response = parse_ai_response(ai_response)
