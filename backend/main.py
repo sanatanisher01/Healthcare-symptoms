@@ -596,25 +596,21 @@ async def check_symptoms(request: dict, github_username: str = None):
             print(f"🤖 Using HF API for: {symptoms_lower}")
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             
-            # Try biomedical BERT models
+            # Try working models with correct tasks
             models_to_try = [
-                "d4data/biobert-base-cased-finetuned-medic",
-                "kamalkraj/bioelectra-base-discriminator-pubmed", 
-                "emilyalsentzer/Bio_ClinicalBERT",
-                "bert-base-uncased"
+                {"model": "gpt2", "task": "text-generation"},
+                {"model": "distilgpt2", "task": "text-generation"},
+                {"model": "microsoft/DialoGPT-small", "task": "text-generation"}
             ]
             
-            for model_name in models_to_try:
+            for model_info in models_to_try:
+                model_name = model_info["model"]
                 url = f"https://api-inference.huggingface.co/models/{model_name}"
                 print(f"🔄 Trying model: {model_name}")
             
                 payload = {
-                    "inputs": f"Patient symptoms: {symptoms_lower}. Medical analysis:",
-                    "parameters": {
-                        "max_length": 150,
-                        "temperature": 0.5,
-                        "do_sample": True
-                    },
+                    "inputs": f"Symptoms: {symptoms_lower}. Medical diagnosis:",
+                    "parameters": {"max_new_tokens": 40, "temperature": 0.6},
                     "options": {"wait_for_model": True}
                 }
                 
