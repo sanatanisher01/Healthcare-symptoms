@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import requests
 import json
@@ -11,13 +10,9 @@ load_dotenv()
 
 app = FastAPI(title="MediCheck API", version="1.0.0")
 
-# Mount static files (frontend)
-app.mount("/static", StaticFiles(directory="../frontend/dist"), name="static")
-
 @app.get("/")
-async def serve_frontend():
-    from fastapi.responses import FileResponse
-    return FileResponse("../frontend/dist/index.html")
+async def root():
+    return {"message": "MediCheck API is running"}
 
 # CORS middleware
 app.add_middleware(
