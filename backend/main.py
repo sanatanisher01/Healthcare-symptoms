@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import requests
 import json
 import os
@@ -23,17 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class SymptomRequest(BaseModel):
-    symptoms: str
-    age_group: str
-    gender: str
-
-class SymptomResponse(BaseModel):
-    diagnoses: list[str]
-    recommendations: list[str]
-
-class StarCheckRequest(BaseModel):
-    github_username: str
+# Simple dict-based models to avoid pydantic issues
 
 # API configurations
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
@@ -42,9 +31,9 @@ HF_MODEL = "microsoft/DialoGPT-medium"
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
 @app.post("/verify-star")
-async def verify_star(request: StarCheckRequest):
+async def verify_star(request: dict):
     """Check if user has starred the repository"""
-    username = request.github_username.strip()
+    username = request.get("github_username", "").strip()
     
     # Test bypass
     if username.lower() in ["test", "demo"]:
@@ -94,7 +83,7 @@ async def verify_star(request: StarCheckRequest):
         return {"starred": False, "message": f"Error: {str(e)[:50]}..."}
 
 @app.post("/check-symptoms")
-async def check_symptoms(request: SymptomRequest, github_username: str = None):
+async def check_symptoms(request: dict, github_username: str = None):
     """Analyze symptoms - requires GitHub star verification"""
     
     if not github_username:
@@ -118,7 +107,7 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
             raise HTTPException(status_code=403, detail="Unable to verify star status")
     
     # Fallback response
-    symptoms_lower = request.symptoms.lower()
+    symptoms_lower = request.get("symptoms", "").lower()
     
     if any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
         diagnoses = ["Common Cold", "Flu", "Upper Respiratory Infection"]
@@ -143,7 +132,7 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
             "Seek immediate care if symptoms are severe"
         ]
     
-    return SymptomResponse(diagnoses=diagnoses, recommendations=recommendations)
+    return {"diagnoses": diagnoses, "recommendations": recommendations}
 
 if __name__ == "__main__":
     import uvicorn
