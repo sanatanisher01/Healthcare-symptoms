@@ -1,5 +1,7 @@
 # MediCheck - AI Healthcare Symptom Checker
 
+⭐ **Please star this repository to access the live app!** ⭐
+
 A modern healthcare symptom checker portal powered by AI, built with React frontend and FastAPI backend.
 
 ## Features
@@ -9,6 +11,7 @@ A modern healthcare symptom checker portal powered by AI, built with React front
 - ⚡ Fast FastAPI backend
 - 📱 Responsive design
 - 🔒 Privacy-focused approach
+- ⭐ GitHub star verification system
 
 ## Project Structure
 

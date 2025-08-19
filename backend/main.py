@@ -37,6 +37,9 @@ class SymptomResponse(BaseModel):
     diagnoses: list[str]
     recommendations: list[str]
 
+class StarCheckRequest(BaseModel):
+    github_username: str
+
 # Hugging Face API configuration
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 HF_MODEL = "microsoft/DialoGPT-medium"  # More reliable model
@@ -127,8 +130,36 @@ def parse_ai_response(response_text: str) -> dict:
 async def root():
     return {"message": "MediCheck API is running"}
 
+@app.post("/verify-star")
+async def verify_star(request: StarCheckRequest):
+    """Check if user has starred the repository"""
+    try:
+        # Check if user starred the repo
+        url = f"https://api.github.com/users/{request.github_username}/starred/sanatanisher01/Healthcare-symptoms"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 204:
+            return {"starred": True, "message": "Access granted!"}
+        else:
+            return {"starred": False, "message": "Please star the repository to access the app"}
+    except:
+        return {"starred": False, "message": "Unable to verify. Please try again."}
+
 @app.post("/check-symptoms", response_model=SymptomResponse)
-async def check_symptoms(request: SymptomRequest):
+async def check_symptoms(request: SymptomRequest, github_username: str = None):
+    """Analyze symptoms - requires GitHub star verification"""
+    
+    # Verify star first
+    if github_username:
+        try:
+            url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
+            response = requests.get(url, timeout=5)
+            if response.status_code != 204:
+                raise HTTPException(status_code=403, detail="Please star the repository first")
+        except requests.RequestException:
+            raise HTTPException(status_code=403, detail="Unable to verify star status")
+    else:
+        raise HTTPException(status_code=403, detail="GitHub username required")
     """Analyze symptoms and return possible diagnoses and recommendations"""
     
     # Create prompt for the AI model

@@ -7,22 +7,53 @@ const SymptomChecker = () => {
     age_group: '',
     gender: ''
   })
+  const [githubUsername, setGithubUsername] = useState('')
+  const [isVerified, setIsVerified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState(null)
+  const [verifyLoading, setVerifyLoading] = useState(false)
+
+  const verifyGitHubStar = async () => {
+    if (!githubUsername) return
+    setVerifyLoading(true)
+    
+    try {
+      const response = await axios.post('/verify-star', { github_username: githubUsername })
+      if (response.data.starred) {
+        setIsVerified(true)
+      } else {
+        alert('Please star the repository first: https://github.com/sanatanisher01/Healthcare-symptoms')
+      }
+    } catch (error) {
+      alert('Unable to verify. Please check your username and try again.')
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!isVerified) {
+      alert('Please verify your GitHub star first!')
+      return
+    }
+    
     setLoading(true)
     
     try {
-      const response = await axios.post('/check-symptoms', formData)
+      const response = await axios.post(`/check-symptoms?github_username=${githubUsername}`, formData)
       setResults(response.data)
     } catch (error) {
       console.error('Error:', error)
-      setResults({
-        diagnoses: ['Unable to process request'],
-        recommendations: ['Please try again later or consult a healthcare professional']
-      })
+      if (error.response?.status === 403) {
+        alert('Please star the repository: https://github.com/sanatanisher01/Healthcare-symptoms')
+        setIsVerified(false)
+      } else {
+        setResults({
+          diagnoses: ['Unable to process request'],
+          recommendations: ['Please try again later or consult a healthcare professional']
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -34,7 +65,42 @@ const SymptomChecker = () => {
         AI Symptom Checker
       </h1>
       
-      <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+      {!isVerified && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8 rounded-lg">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-4">⭐ Star Required</h2>
+          <p className="text-yellow-700 mb-4">
+            Please star our repository to access the AI symptom checker:
+          </p>
+          <a 
+            href="https://github.com/sanatanisher01/Healthcare-symptoms" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-block bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 mb-4"
+          >
+            ⭐ Star Repository
+          </a>
+          
+          <div className="flex gap-2 mt-4">
+            <input
+              type="text"
+              value={githubUsername}
+              onChange={(e) => setGithubUsername(e.target.value)}
+              placeholder="Enter your GitHub username"
+              className="flex-1 p-3 border border-gray-300 rounded-lg"
+            />
+            <button
+              type="button"
+              onClick={verifyGitHubStar}
+              disabled={verifyLoading || !githubUsername}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {verifyLoading ? 'Verifying...' : 'Verify'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`bg-white rounded-2xl shadow-xl p-8 mb-8 ${!isVerified ? 'opacity-50 pointer-events-none' : ''}`}>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -89,7 +155,7 @@ const SymptomChecker = () => {
           
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !isVerified}
             className="w-full bg-primary text-white py-4 px-6 rounded-lg font-semibold hover:bg-blue-700 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -97,8 +163,10 @@ const SymptomChecker = () => {
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
                 Analyzing...
               </div>
-            ) : (
+            ) : isVerified ? (
               'Check Symptoms'
+            ) : (
+              '⭐ Star Repository First'
             )}
           </button>
         </form>
