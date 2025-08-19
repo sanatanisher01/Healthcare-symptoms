@@ -596,11 +596,12 @@ async def check_symptoms(request: dict, github_username: str = None):
             print(f"🤖 Using HF API for: {symptoms_lower}")
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             
-            # Try different working models
+            # Try medical-specific AI models
             models_to_try = [
-                "microsoft/DialoGPT-medium",
-                "facebook/blenderbot-400M-distill",
-                "microsoft/DialoGPT-small"
+                "m42-health/med42-v2-8b",
+                "stanford-crfm/BioMedLM",
+                "AdaptLLM/medicine-LLM-7B",
+                "microsoft/BioGPT-Large"
             ]
             
             for model_name in models_to_try:
