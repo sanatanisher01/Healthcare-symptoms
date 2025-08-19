@@ -596,60 +596,52 @@ async def check_symptoms(request: dict, github_username: str = None):
             print(f"🤖 Using HF API for: {symptoms_lower}")
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             
-            # Try working models with correct tasks
-            models_to_try = [
-                {"model": "gpt2", "task": "text-generation"},
-                {"model": "distilgpt2", "task": "text-generation"},
-                {"model": "microsoft/DialoGPT-small", "task": "text-generation"}
-            ]
+            # Try text generation API directly
+            url = "https://api-inference.huggingface.co/models/gpt2"
+            payload = {
+                "inputs": f"Medical symptoms: {symptoms_lower}. Diagnosis:",
+                "parameters": {"max_new_tokens": 50, "temperature": 0.7},
+                "options": {"wait_for_model": True}
+            }
             
-            for model_info in models_to_try:
-                model_name = model_info["model"]
-                url = f"https://api-inference.huggingface.co/models/{model_name}"
-                print(f"🔄 Trying model: {model_name}")
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            print(f"🔍 Direct API Status: {response.status_code}")
+            print(f"📊 Response: {response.text[:200]}")
             
-                payload = {
-                    "inputs": f"Symptoms: {symptoms_lower}. Medical diagnosis:",
-                    "parameters": {"max_new_tokens": 40, "temperature": 0.6},
-                    "options": {"wait_for_model": True}
-                }
-                
-                response = requests.post(url, headers=headers, json=payload, timeout=15)
-                print(f"🔍 {model_name} Status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    print(f"✅ SUCCESS with {model_name}")
+            if response.status_code == 200:
+                result = response.json()
+                if result and len(result) > 0 and 'generated_text' in result[0]:
+                    ai_text = result[0]['generated_text'].replace(f"Medical symptoms: {symptoms_lower}. Diagnosis:", "").strip()
+                    if ai_text and len(ai_text) > 10:
+                        return {
+                            "diagnoses": [f"AI Analysis: {ai_text[:100]}"],
+                            "recommendations": ["Consult healthcare professional", "Monitor symptoms closely"],
+                            "source": "Hugging Face GPT-2"
+                        }
+            
+            # If direct API fails, try alternative approach
+            models_to_try = ["microsoft/DialoGPT-medium", "facebook/blenderbot-400M-distill"]
+            
+            for model_name in models_to_try:
+                try:
+                    url = f"https://api-inference.huggingface.co/models/{model_name}"
+                    print(f"🔄 Trying {model_name}")
                     
-                    if result and len(result) > 0:
-                        ai_text = ""
-                        if 'generated_text' in result[0]:
-                            ai_text = result[0]['generated_text']
-                        elif isinstance(result[0], str):
-                            ai_text = result[0]
-                        
-                        if ai_text and len(ai_text) > 20:
-                            # Clean the response
-                            ai_text = ai_text.replace(f"Patient symptoms: {symptoms_lower}. Medical analysis:", "").strip()
-                            
-                            diagnoses = [f"AI Medical Analysis: {ai_text[:120]}"]
-                            recommendations = [
-                                "AI-generated analysis - consult healthcare professional",
-                                "Seek medical evaluation for accurate diagnosis",
-                                "Monitor symptoms and get immediate care if severe"
-                            ]
-                            
+                    payload = {"inputs": f"Patient: {symptoms_lower}"}
+                    response = requests.post(url, headers=headers, json=payload, timeout=10)
+                    print(f"🔍 {model_name} Status: {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result and len(result) > 0:
+                            ai_response = str(result[0]) if isinstance(result[0], dict) else result[0]
                             return {
-                                "diagnoses": diagnoses,
-                                "recommendations": recommendations,
-                                "source": f"Hugging Face AI: {model_name.split('/')[-1]}"
+                                "diagnoses": [f"AI Response: {ai_response[:100]}"],
+                                "recommendations": ["Consult healthcare professional"],
+                                "source": f"HF Model: {model_name.split('/')[-1]}"
                             }
-                
-                elif response.status_code == 503:
-                    print(f"⏳ {model_name} loading, trying next...")
-                    continue
-                else:
-                    print(f"❌ {model_name} failed: {response.status_code}")
+                except Exception as e:
+                    print(f"❌ {model_name} error: {e}")
                     continue
             
             print("🔄 All HF models failed, using Enhanced AI System")
