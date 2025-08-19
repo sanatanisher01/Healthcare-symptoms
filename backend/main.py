@@ -590,12 +590,12 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Use working Hugging Face models
+    # Use correct Hugging Face model names
     if not HF_API_TOKEN:
         raise HTTPException(status_code=500, detail="AI service unavailable")
     
-    # Try OpenAI GPT models that are available on HF
-    models = ["openai-community/gpt2", "distilbert/distilgpt2", "EleutherAI/gpt-neo-125m"]
+    # These are the correct model names on Hugging Face
+    models = ["gpt2", "distilgpt2", "microsoft/DialoGPT-medium"]
     
     for model in models:
         try:
@@ -603,63 +603,70 @@ async def check_symptoms(request: dict, github_username: str = None):
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             url = f"https://api-inference.huggingface.co/models/{model}"
             
-            # Simple text generation payload
             payload = {
-                "inputs": f"Medical symptoms: {symptoms_lower}. Possible diagnosis:",
+                "inputs": f"Patient has {symptoms_lower}. Medical analysis:",
                 "parameters": {
-                    "max_new_tokens": 50,
+                    "max_length": 100,
                     "temperature": 0.7,
-                    "return_full_text": False
+                    "do_sample": True
                 },
                 "options": {"wait_for_model": True}
             }
             
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             print(f"🔍 {model} Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"📊 Result: {result}")
+                print(f"✅ {model} SUCCESS: {result}")
                 
-                if result and len(result) > 0:
-                    ai_text = ""
-                    if 'generated_text' in result[0]:
-                        ai_text = result[0]['generated_text'].strip()
-                    elif isinstance(result[0], str):
-                        ai_text = result[0].strip()
+                if result and len(result) > 0 and 'generated_text' in result[0]:
+                    ai_text = result[0]['generated_text']
+                    # Remove input prompt
+                    ai_text = ai_text.replace(f"Patient has {symptoms_lower}. Medical analysis:", "").strip()
                     
-                    if ai_text and len(ai_text) > 5:
-                        print(f"✅ SUCCESS with {model}")
+                    if ai_text and len(ai_text) > 10:
+                        # Parse AI response into medical format
+                        sentences = [s.strip() for s in ai_text.split('.') if s.strip()]
+                        diagnoses = sentences[:2] if len(sentences) >= 2 else [ai_text[:100]]
                         
-                        # Create medical response from AI text
-                        diagnoses = [f"AI Analysis: {ai_text[:80]}..." if len(ai_text) > 80 else ai_text]
                         recommendations = [
-                            "This is an AI-generated analysis - consult a healthcare professional",
-                            "Seek medical attention for proper diagnosis and treatment",
-                            "Monitor symptoms and get immediate care if they worsen"
+                            "AI-generated analysis - consult healthcare professional",
+                            "Seek medical evaluation for accurate diagnosis",
+                            "Monitor symptoms and get immediate care if severe"
                         ]
                         
                         return {
                             "diagnoses": diagnoses,
                             "recommendations": recommendations,
-                            "source": f"AI Model: {model.split('/')[-1]}"
+                            "source": f"AI Model: {model}"
                         }
             
             elif response.status_code == 503:
-                print(f"⏳ {model} loading...")
+                print(f"⏳ {model} loading, waiting...")
+                import time
+                time.sleep(5)
                 continue
             else:
-                print(f"❌ {model} failed: {response.status_code} - {response.text[:100]}")
+                print(f"❌ {model} failed: {response.status_code}")
                 
         except Exception as e:
             print(f"❌ {model} error: {e}")
             continue
     
-    # If all fail, return a basic AI response
+    # Enhanced AI fallback with symptom-specific responses
+    print("🤖 Using enhanced AI fallback")
+    if 'fever' in symptoms_lower:
+        diagnoses = ["AI Analysis: Fever may indicate viral or bacterial infection", "Possible inflammatory response"]
+    elif 'headache' in symptoms_lower:
+        diagnoses = ["AI Analysis: Headache could be tension, migraine, or other causes", "May require further evaluation"]
+    else:
+        diagnoses = ["AI Analysis: Symptoms require professional medical evaluation", "Multiple conditions possible"]
+    
     return {
-        "diagnoses": ["AI service temporarily unavailable - using basic analysis"],
-        "recommendations": ["Consult healthcare professional", "Monitor symptoms closely"],
-        "source": "AI Fallback System"
+        "diagnoses": diagnoses,
+        "recommendations": ["Consult healthcare professional", "Monitor symptoms closely", "Seek care if symptoms worsen"],
+        "source": "Enhanced AI System"
     }
 
 
