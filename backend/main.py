@@ -504,10 +504,8 @@ app.add_middleware(
 )
 
 # API configurations
-HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-HF_MODEL = "microsoft/BioGPT-Large"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
 @app.post("/verify-star")
 async def verify_star(request: dict):
@@ -590,93 +588,85 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Try Hugging Face API with new token
-    if HF_API_TOKEN:
+    # Use OpenAI API for medical analysis
+    if OPENAI_API_KEY:
         try:
-            print(f"🤖 Using HF API for: {symptoms_lower}")
-            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+            print(f"🤖 Using OpenAI API for: {symptoms_lower}")
             
-            # Try text generation API directly
-            url = "https://api-inference.huggingface.co/models/gpt2"
-            payload = {
-                "inputs": f"Medical symptoms: {symptoms_lower}. Diagnosis:",
-                "parameters": {"max_new_tokens": 50, "temperature": 0.7},
-                "options": {"wait_for_model": True}
+            headers = {
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json"
             }
             
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
-            print(f"🔍 Direct API Status: {response.status_code}")
-            print(f"📊 Response: {response.text[:200]}")
+            payload = {
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a medical AI assistant. Provide possible diagnoses and recommendations for symptoms. Always advise consulting healthcare professionals."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Patient: {age_group} {gender}. Symptoms: {symptoms_lower}. Provide possible diagnoses and recommendations."
+                    }
+                ],
+                "max_tokens": 200,
+                "temperature": 0.3
+            }
+            
+            response = requests.post("https://api.openai.com/v1/chat/completions", 
+                                   headers=headers, json=payload, timeout=20)
+            
+            print(f"🔍 OpenAI API Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                if result and len(result) > 0 and 'generated_text' in result[0]:
-                    ai_text = result[0]['generated_text'].replace(f"Medical symptoms: {symptoms_lower}. Diagnosis:", "").strip()
-                    if ai_text and len(ai_text) > 10:
-                        return {
-                            "diagnoses": [f"AI Analysis: {ai_text[:100]}"],
-                            "recommendations": ["Consult healthcare professional", "Monitor symptoms closely"],
-                            "source": "Hugging Face GPT-2"
-                        }
+                ai_response = result['choices'][0]['message']['content']
+                
+                print(f"✅ OpenAI Success: {ai_response[:100]}...")
+                
+                # Parse response into diagnoses and recommendations
+                lines = ai_response.split('\n')
+                diagnoses = []
+                recommendations = []
+                
+                current_section = None
+                for line in lines:
+                    line = line.strip()
+                    if any(word in line.lower() for word in ['diagnos', 'condition', 'possible']):
+                        current_section = 'diagnoses'
+                    elif any(word in line.lower() for word in ['recommend', 'advice', 'suggest']):
+                        current_section = 'recommendations'
+                    elif line and line not in ['', '-', '*']:
+                        if current_section == 'diagnoses':
+                            diagnoses.append(line.replace('-', '').replace('*', '').strip())
+                        elif current_section == 'recommendations':
+                            recommendations.append(line.replace('-', '').replace('*', '').strip())
+                
+                # If parsing fails, use the full response
+                if not diagnoses:
+                    diagnoses = [ai_response[:150]]
+                if not recommendations:
+                    recommendations = ["Consult a healthcare professional for proper evaluation"]
+                
+                return {
+                    "diagnoses": diagnoses[:3],
+                    "recommendations": recommendations[:4],
+                    "source": "OpenAI GPT-3.5 Medical AI"
+                }
             
-            # If direct API fails, try alternative approach
-            models_to_try = ["microsoft/DialoGPT-medium", "facebook/blenderbot-400M-distill"]
-            
-            for model_name in models_to_try:
-                try:
-                    url = f"https://api-inference.huggingface.co/models/{model_name}"
-                    print(f"🔄 Trying {model_name}")
-                    
-                    payload = {"inputs": f"Patient: {symptoms_lower}"}
-                    response = requests.post(url, headers=headers, json=payload, timeout=10)
-                    print(f"🔍 {model_name} Status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        if result and len(result) > 0:
-                            ai_response = str(result[0]) if isinstance(result[0], dict) else result[0]
-                            return {
-                                "diagnoses": [f"AI Response: {ai_response[:100]}"],
-                                "recommendations": ["Consult healthcare professional"],
-                                "source": f"HF Model: {model_name.split('/')[-1]}"
-                            }
-                except Exception as e:
-                    print(f"❌ {model_name} error: {e}")
-                    continue
-            
-            print("🔄 All HF models failed, using Enhanced AI System")
+            else:
+                print(f"❌ OpenAI API failed: {response.status_code} - {response.text[:100]}")
+                raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
                 
         except Exception as e:
-            print(f"❌ HF API error: {e}")
+            print(f"❌ OpenAI API error: {e}")
+            raise HTTPException(status_code=503, detail="AI service error")
     
-    # Enhanced fallback system
-    print("🤖 Using enhanced AI fallback")
-    
-    if 'fever' in symptoms_lower:
-        diagnoses = ["AI Analysis: Fever indicates possible viral or bacterial infection", "Body's inflammatory response to pathogens"]
-    elif 'headache' in symptoms_lower:
-        diagnoses = ["AI Analysis: Headache may be tension-type, migraine, or secondary cause", "Multiple triggers possible including stress"]
-    elif 'cough' in symptoms_lower:
-        diagnoses = ["AI Analysis: Cough suggests respiratory tract irritation or infection", "May indicate upper or lower respiratory involvement"]
-    elif any(word in symptoms_lower for word in ['breathing', 'breathe']):
-        diagnoses = ["AI Analysis: Breathing difficulty requires immediate evaluation", "Possible asthma, infection, or anxiety-related"]
     else:
-        diagnoses = [f"AI Analysis: Symptoms '{symptoms_lower}' require professional medical evaluation", "Multiple differential diagnoses possible"]
+        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
     
-    recommendations = [
-        "AI-powered analysis - consult healthcare professional for confirmation",
-        "Monitor symptoms and seek care if they worsen",
-        "Follow up with your doctor for proper treatment"
-    ]
-    
-    if age_group == "Senior":
-        recommendations.append("Seniors should seek medical attention promptly")
-    
-    return {
-        "diagnoses": diagnoses,
-        "recommendations": recommendations,
-        "source": "Enhanced AI Medical System"
-    }
+
 
 
 if __name__ == "__main__":
