@@ -597,7 +597,7 @@ async def check_symptoms(request: dict, github_username: str = None):
         try:
             print(f"🤖 Using Gemini API for: {symptoms_lower}")
             
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
             
             payload = {
                 "contents": [{
