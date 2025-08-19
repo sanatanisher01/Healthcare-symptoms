@@ -87,12 +87,22 @@ const SymptomChecker = () => {
             ⭐ Star Repository
           </a>
           
-          <div className="flex gap-2 mt-4">
+          <div className="mb-3">
+            <p className="text-sm text-yellow-700 mb-2">
+              <strong>Username Format:</strong> Enter only your GitHub username (not full URL)
+            </p>
+            <p className="text-xs text-yellow-600">
+              ✅ Correct: <code className="bg-yellow-100 px-1 rounded">sanatanisher01</code><br/>
+              ❌ Wrong: <code className="bg-red-100 px-1 rounded">https://github.com/sanatanisher01</code>
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
             <input
               type="text"
               value={githubUsername}
               onChange={(e) => setGithubUsername(e.target.value)}
-              placeholder="Enter your GitHub username"
+              placeholder="username (e.g., sanatanisher01)"
               className="flex-1 p-3 border border-gray-300 rounded-lg"
             />
             <button
