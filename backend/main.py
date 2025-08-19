@@ -128,27 +128,68 @@ def parse_ai_response(response_text: str) -> dict:
 
 
 
+@app.get("/test-github/{username}")
+async def test_github(username: str):
+    """Test GitHub API connectivity"""
+    try:
+        # Test basic user API first
+        user_url = f"https://api.github.com/users/{username}"
+        headers = {"User-Agent": "MediCheck-App"}
+        user_response = requests.get(user_url, headers=headers, timeout=10)
+        
+        # Test starred repo API
+        star_url = f"https://api.github.com/users/{username}/starred/sanatanisher01/Healthcare-symptoms"
+        star_response = requests.get(star_url, headers=headers, timeout=10)
+        
+        return {
+            "user_api": {
+                "status": user_response.status_code,
+                "exists": user_response.status_code == 200
+            },
+            "star_api": {
+                "status": star_response.status_code,
+                "starred": star_response.status_code == 204
+            },
+            "rate_limit": star_response.headers.get("X-RateLimit-Remaining", "unknown")
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/verify-star")
 async def verify_star(request: StarCheckRequest):
     """Check if user has starred the repository"""
     try:
-        # Check if user starred the repo
-        url = f"https://api.github.com/users/{request.github_username}/starred/sanatanisher01/Healthcare-symptoms"
+        username = request.github_username.strip()
+        
+        # First check if user exists
+        user_url = f"https://api.github.com/users/{username}"
         headers = {"User-Agent": "MediCheck-App"}
-        response = requests.get(url, headers=headers, timeout=10)
+        user_response = requests.get(user_url, headers=headers, timeout=10)
         
-        print(f"GitHub API response: {response.status_code}")
-        print(f"Response text: {response.text[:200]}")
+        if user_response.status_code != 200:
+            return {"starred": False, "message": f"GitHub user '{username}' not found"}
         
-        if response.status_code == 204:
+        # Check if user starred the repo
+        star_url = f"https://api.github.com/users/{username}/starred/sanatanisher01/Healthcare-symptoms"
+        star_response = requests.get(star_url, headers=headers, timeout=10)
+        
+        print(f"User: {username}")
+        print(f"User API: {user_response.status_code}")
+        print(f"Star API: {star_response.status_code}")
+        print(f"Rate limit: {star_response.headers.get('X-RateLimit-Remaining', 'unknown')}")
+        
+        if star_response.status_code == 204:
             return {"starred": True, "message": "Access granted!"}
-        elif response.status_code == 404:
-            return {"starred": False, "message": "User not found or repository not starred"}
+        elif star_response.status_code == 404:
+            return {"starred": False, "message": "Repository not starred. Please star it first!"}
+        elif star_response.status_code == 403:
+            return {"starred": False, "message": "Rate limit exceeded. Please try again in a few minutes."}
         else:
-            return {"starred": False, "message": "Please star the repository to access the app"}
+            return {"starred": False, "message": f"Verification failed (Status: {star_response.status_code})"}
+            
     except Exception as e:
         print(f"Star verification error: {e}")
-        return {"starred": False, "message": "Unable to verify. Please try again."}
+        return {"starred": False, "message": "Network error. Please try again."}
 
 @app.post("/check-symptoms")
 async def check_symptoms(request: SymptomRequest, github_username: str = None):
