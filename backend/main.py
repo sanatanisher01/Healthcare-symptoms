@@ -40,8 +40,9 @@ class SymptomResponse(BaseModel):
 class StarCheckRequest(BaseModel):
     github_username: str
 
-# Hugging Face API configuration
+# API configurations
 HF_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # Optional: for higher rate limits
 HF_MODEL = "microsoft/DialoGPT-medium"  # More reliable model
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
@@ -135,6 +136,8 @@ async def test_github(username: str):
         # Test basic user API first
         user_url = f"https://api.github.com/users/{username}"
         headers = {"User-Agent": "MediCheck-App"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
         user_response = requests.get(user_url, headers=headers, timeout=10)
         
         # Test starred repo API
@@ -164,6 +167,8 @@ async def verify_star(request: StarCheckRequest):
         # First check if user exists
         user_url = f"https://api.github.com/users/{username}"
         headers = {"User-Agent": "MediCheck-App"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
         user_response = requests.get(user_url, headers=headers, timeout=10)
         
         if user_response.status_code != 200:
@@ -202,6 +207,8 @@ async def check_symptoms(request: SymptomRequest, github_username: str = None):
     try:
         url = f"https://api.github.com/users/{github_username}/starred/sanatanisher01/Healthcare-symptoms"
         headers = {"User-Agent": "MediCheck-App"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
         star_response = requests.get(url, headers=headers, timeout=10)
         
         if star_response.status_code != 204:
