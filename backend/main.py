@@ -611,10 +611,11 @@ async def check_symptoms(request: dict, github_username: str = None):
             
             response = requests.post(url, headers=headers, json=payload, timeout=20)
             print(f"🔍 HF API Status: {response.status_code}")
+            print(f"📊 HF Response: {response.text[:200]}")
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ HF API Success: {result}")
+                print(f"✅ HF API Success: {str(result)[:200]}")
                 
                 if result and len(result) > 0 and 'generated_text' in result[0]:
                     ai_text = result[0]['generated_text'].strip()
@@ -636,7 +637,8 @@ async def check_symptoms(request: dict, github_username: str = None):
             elif response.status_code == 503:
                 print("⏳ Model loading, using fallback...")
             else:
-                print(f"❌ HF API failed: {response.status_code} - {response.text[:100]}")
+                print(f"❌ HF API failed: {response.status_code} - {response.text[:200]}")
+                print(f"🔄 Falling back to Enhanced AI System")
                 
         except Exception as e:
             print(f"❌ HF API error: {e}")
