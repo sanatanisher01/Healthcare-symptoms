@@ -177,7 +177,6 @@ async def serve_frontend():
                                     <option value="">Select gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
                                 </select>
                             </div>
                         </div>
@@ -455,6 +454,9 @@ async def serve_frontend():
                 }, 3000);
             }
 
+            // Disable right-click context menu
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            
             // Initialize on load
             window.addEventListener('load', () => {
                 initThreeJS();
@@ -574,10 +576,23 @@ async def check_symptoms(request: dict, github_username: str = None):
         except requests.RequestException:
             raise HTTPException(status_code=403, detail="Unable to verify star status")
     
-    # Fallback response
+    # Enhanced symptom analysis
     symptoms_lower = request.get("symptoms", "").lower()
+    age_group = request.get("age_group", "")
     
-    if any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
+    # Breathing difficulties - requires immediate attention
+    if any(word in symptoms_lower for word in ['difficulty breathing', 'shortness of breath', 'breathless', 'breathing problem', 'can\'t breathe']):
+        diagnoses = ["Asthma", "Respiratory Infection", "Anxiety/Panic Attack", "Allergic Reaction"]
+        recommendations = [
+            "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if breathing is severely impaired",
+            "Sit upright and try to remain calm",
+            "Use prescribed inhaler if you have asthma",
+            "Call emergency services (911) if symptoms are severe or worsening",
+            "Avoid known allergens if this could be an allergic reaction"
+        ]
+        if age_group == "Teen":
+            recommendations.append("Consider if this could be anxiety-related - practice slow, deep breathing")
+    elif any(word in symptoms_lower for word in ['fever', 'cough', 'sore throat']):
         diagnoses = ["Common Cold", "Flu", "Upper Respiratory Infection"]
         recommendations = [
             "Rest and drink plenty of fluids",
@@ -592,12 +607,20 @@ async def check_symptoms(request: dict, github_username: str = None):
             "Consider over-the-counter pain relief",
             "See a doctor if severe or persistent"
         ]
-    else:
-        diagnoses = ["Various conditions possible"]
+    elif any(word in symptoms_lower for word in ['chest pain', 'heart']):
+        diagnoses = ["Muscle Strain", "Anxiety", "Gastroesophageal Reflux"]
         recommendations = [
-            "Monitor symptoms closely",
+            "🚨 SEEK IMMEDIATE MEDICAL ATTENTION if chest pain is severe, crushing, or radiating",
+            "Call emergency services if accompanied by shortness of breath or dizziness",
+            "Avoid physical exertion until evaluated by a healthcare provider"
+        ]
+    else:
+        diagnoses = ["Multiple conditions possible - requires professional evaluation"]
+        recommendations = [
+            "Monitor symptoms closely and note any changes",
             "Consult a healthcare professional for proper evaluation",
-            "Seek immediate care if symptoms are severe"
+            "Seek immediate care if symptoms are severe or worsening",
+            "Keep a symptom diary to help with diagnosis"
         ]
     
     return {"diagnoses": diagnoses, "recommendations": recommendations}
