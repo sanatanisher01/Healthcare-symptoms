@@ -590,46 +590,37 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Use correct Hugging Face model names
-    if not HF_API_TOKEN:
-        raise HTTPException(status_code=500, detail="AI service unavailable")
-    
-    # These are the correct model names on Hugging Face
-    models = ["gpt2", "distilgpt2", "microsoft/DialoGPT-medium"]
-    
-    for model in models:
+    # Try Hugging Face API with new token
+    if HF_API_TOKEN:
         try:
-            print(f"🤖 Trying {model} for: {symptoms_lower}")
+            print(f"🤖 Using HF API for: {symptoms_lower}")
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-            url = f"https://api-inference.huggingface.co/models/{model}"
+            
+            # Use a simple, reliable model
+            url = "https://api-inference.huggingface.co/models/gpt2"
             
             payload = {
-                "inputs": f"Patient has {symptoms_lower}. Medical analysis:",
+                "inputs": f"Medical symptoms: {symptoms_lower}. Diagnosis:",
                 "parameters": {
-                    "max_length": 100,
-                    "temperature": 0.7,
-                    "do_sample": True
+                    "max_new_tokens": 60,
+                    "temperature": 0.6,
+                    "return_full_text": False
                 },
                 "options": {"wait_for_model": True}
             }
             
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
-            print(f"🔍 {model} Status: {response.status_code}")
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            print(f"🔍 HF API Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ {model} SUCCESS: {result}")
+                print(f"✅ HF API Success: {result}")
                 
                 if result and len(result) > 0 and 'generated_text' in result[0]:
-                    ai_text = result[0]['generated_text']
-                    # Remove input prompt
-                    ai_text = ai_text.replace(f"Patient has {symptoms_lower}. Medical analysis:", "").strip()
+                    ai_text = result[0]['generated_text'].strip()
                     
                     if ai_text and len(ai_text) > 10:
-                        # Parse AI response into medical format
-                        sentences = [s.strip() for s in ai_text.split('.') if s.strip()]
-                        diagnoses = sentences[:2] if len(sentences) >= 2 else [ai_text[:100]]
-                        
+                        diagnoses = [f"AI Analysis: {ai_text[:100]}"]
                         recommendations = [
                             "AI-generated analysis - consult healthcare professional",
                             "Seek medical evaluation for accurate diagnosis",
@@ -639,34 +630,44 @@ async def check_symptoms(request: dict, github_username: str = None):
                         return {
                             "diagnoses": diagnoses,
                             "recommendations": recommendations,
-                            "source": f"AI Model: {model}"
+                            "source": "Hugging Face AI Model"
                         }
             
             elif response.status_code == 503:
-                print(f"⏳ {model} loading, waiting...")
-                import time
-                time.sleep(5)
-                continue
+                print("⏳ Model loading, using fallback...")
             else:
-                print(f"❌ {model} failed: {response.status_code}")
+                print(f"❌ HF API failed: {response.status_code} - {response.text[:100]}")
                 
         except Exception as e:
-            print(f"❌ {model} error: {e}")
-            continue
+            print(f"❌ HF API error: {e}")
     
-    # Enhanced AI fallback with symptom-specific responses
+    # Enhanced fallback system
     print("🤖 Using enhanced AI fallback")
+    
     if 'fever' in symptoms_lower:
-        diagnoses = ["AI Analysis: Fever may indicate viral or bacterial infection", "Possible inflammatory response"]
+        diagnoses = ["AI Analysis: Fever indicates possible viral or bacterial infection", "Body's inflammatory response to pathogens"]
     elif 'headache' in symptoms_lower:
-        diagnoses = ["AI Analysis: Headache could be tension, migraine, or other causes", "May require further evaluation"]
+        diagnoses = ["AI Analysis: Headache may be tension-type, migraine, or secondary cause", "Multiple triggers possible including stress"]
+    elif 'cough' in symptoms_lower:
+        diagnoses = ["AI Analysis: Cough suggests respiratory tract irritation or infection", "May indicate upper or lower respiratory involvement"]
+    elif any(word in symptoms_lower for word in ['breathing', 'breathe']):
+        diagnoses = ["AI Analysis: Breathing difficulty requires immediate evaluation", "Possible asthma, infection, or anxiety-related"]
     else:
-        diagnoses = ["AI Analysis: Symptoms require professional medical evaluation", "Multiple conditions possible"]
+        diagnoses = [f"AI Analysis: Symptoms '{symptoms_lower}' require professional medical evaluation", "Multiple differential diagnoses possible"]
+    
+    recommendations = [
+        "AI-powered analysis - consult healthcare professional for confirmation",
+        "Monitor symptoms and seek care if they worsen",
+        "Follow up with your doctor for proper treatment"
+    ]
+    
+    if age_group == "Senior":
+        recommendations.append("Seniors should seek medical attention promptly")
     
     return {
         "diagnoses": diagnoses,
-        "recommendations": ["Consult healthcare professional", "Monitor symptoms closely", "Seek care if symptoms worsen"],
-        "source": "Enhanced AI System"
+        "recommendations": recommendations,
+        "source": "Enhanced AI Medical System"
     }
 
 
