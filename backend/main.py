@@ -520,9 +520,13 @@ async def verify_star(request: dict):
     if username.lower() in ["test", "demo"]:
         return {"starred": True, "message": "Test access granted!"}
     
-    # Special bypass for repo owner
+    # Allow aryan010 as sanatanisher01
+    if username.lower() == "aryan010":
+        return {"starred": True, "message": "Access granted!"}
+    
+    # Block sanatanisher01 username
     if username.lower() == "sanatanisher01":
-        return {"starred": True, "message": "Repository owner access granted!"}
+        return {"starred": False, "message": "This username is restricted. Please use your own GitHub username."}
     
     try:
         # First check if user exists
@@ -570,9 +574,13 @@ async def check_symptoms(request: dict, github_username: str = None):
     if not github_username:
         raise HTTPException(status_code=403, detail="GitHub username required")
     
-    # Test bypass
-    if github_username.lower() in ["test", "demo", "sanatanisher01"]:
-        pass  # Skip verification for test users and repo owner
+    # Allow aryan010 and block sanatanisher01
+    if github_username.lower() == "aryan010":
+        pass  # Skip verification for aryan010
+    elif github_username.lower() == "sanatanisher01":
+        raise HTTPException(status_code=403, detail="This username is restricted. Please use your own GitHub username.")
+    elif github_username.lower() in ["test", "demo"]:
+        pass  # Skip verification for test users
     else:
         # Verify star
         try:
