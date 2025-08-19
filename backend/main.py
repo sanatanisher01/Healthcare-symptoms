@@ -504,16 +504,12 @@ app.add_middleware(
 )
 
 # API configurations
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 # Debug environment variables
-print(f"🔑 OpenAI API Key loaded: {bool(OPENAI_API_KEY)}")
+print(f"🔑 Gemini API Key loaded: {bool(GEMINI_API_KEY)}")
 print(f"🔑 GitHub Token loaded: {bool(GITHUB_TOKEN)}")
-if OPENAI_API_KEY:
-    print(f"🔑 API Key starts with: {OPENAI_API_KEY[:10]}...")
-else:
-    print("❌ OPENAI_API_KEY environment variable not found")
 
 @app.post("/verify-star")
 async def verify_star(request: dict):
@@ -596,83 +592,62 @@ async def check_symptoms(request: dict, github_username: str = None):
     age_group = request.get("age_group", "")
     gender = request.get("gender", "")
     
-    # Use OpenAI API for medical analysis
-    if OPENAI_API_KEY:
+    # Use Gemini API for medical analysis
+    if GEMINI_API_KEY:
         try:
-            print(f"🤖 Using OpenAI API for: {symptoms_lower}")
-            print(f"🔑 API Key present: {bool(OPENAI_API_KEY)}")
+            print(f"🤖 Using Gemini API for: {symptoms_lower}")
             
-            headers = {
-                "Authorization": f"Bearer {OPENAI_API_KEY.strip()}",
-                "Content-Type": "application/json"
-            }
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
             
             payload = {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a medical AI assistant. Analyze symptoms and provide: 1) Possible diagnoses (list 2-3 conditions) 2) Recommendations (list 3-4 actionable steps). Format your response clearly with sections."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Patient: {age_group} {gender}. Symptoms: {symptoms_lower}. Please provide possible diagnoses and recommendations."
-                    }
-                ],
-                "max_tokens": 300,
-                "temperature": 0.3
+                "contents": [{
+                    "parts": [{
+                        "text": f"You are a medical AI assistant. Patient: {age_group} {gender}. Symptoms: {symptoms_lower}. Provide: 1) Possible diagnoses (2-3 conditions) 2) Recommendations (3-4 steps). Format clearly."
+                    }]
+                }]
             }
             
-            print(f"📤 Sending request to OpenAI...")
-            response = requests.post("https://api.openai.com/v1/chat/completions", 
-                                   headers=headers, json=payload, timeout=30)
+            print(f"📤 Sending request to Gemini...")
+            response = requests.post(url, json=payload, timeout=30)
             
-            print(f"🔍 OpenAI API Status: {response.status_code}")
+            print(f"🔍 Gemini API Status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                ai_response = result['choices'][0]['message']['content']
+                ai_response = result['candidates'][0]['content']['parts'][0]['text']
                 
-                print(f"✅ OpenAI Success: {ai_response[:100]}...")
+                print(f"✅ Gemini Success: {ai_response[:100]}...")
                 
-                # Improved parsing
+                # Parse response
                 diagnoses = []
                 recommendations = []
                 
-                # Split by common patterns
-                sections = ai_response.lower().split('recommendation')
-                if len(sections) > 1:
-                    # Extract diagnoses from first section
-                    diag_text = sections[0]
-                    for line in diag_text.split('\n'):
-                        line = line.strip().replace('-', '').replace('*', '').replace('•', '')
-                        if line and len(line) > 10 and not any(skip in line.lower() for skip in ['diagnos', 'possible', 'condition']):
-                            diagnoses.append(line)
-                    
-                    # Extract recommendations from second section
-                    rec_text = sections[1]
-                    for line in rec_text.split('\n'):
-                        line = line.strip().replace('-', '').replace('*', '').replace('•', '')
-                        if line and len(line) > 10:
-                            recommendations.append(line)
-                else:
-                    # Fallback parsing
-                    lines = ai_response.split('\n')
-                    for line in lines:
-                        line = line.strip().replace('-', '').replace('*', '').replace('•', '')
-                        if line and len(line) > 10:
-                            if any(word in line.lower() for word in ['consult', 'see', 'visit', 'call', 'seek']):
-                                recommendations.append(line)
-                            else:
-                                diagnoses.append(line)
+                lines = ai_response.split('\n')
+                current_section = None
                 
-                # Ensure we have content
+                for line in lines:
+                    line = line.strip().replace('-', '').replace('*', '').replace('•', '').replace('1.', '').replace('2.', '').replace('3.', '').replace('4.', '')
+                    if any(word in line.lower() for word in ['diagnos', 'possible', 'condition']):
+                        current_section = 'diagnoses'
+                    elif any(word in line.lower() for word in ['recommend', 'advice', 'suggest', 'step']):
+                        current_section = 'recommendations'
+                    elif line and len(line) > 15:
+                        if current_section == 'diagnoses':
+                            diagnoses.append(line)
+                        elif current_section == 'recommendations':
+                            recommendations.append(line)
+                        elif any(word in line.lower() for word in ['consult', 'see', 'visit', 'call', 'seek', 'rest', 'monitor']):
+                            recommendations.append(line)
+                        else:
+                            diagnoses.append(line)
+                
+                # Ensure content
                 if not diagnoses:
-                    diagnoses = ["Respiratory condition", "Viral infection", "Stress-related symptoms"]
+                    diagnoses = ["Respiratory condition", "Viral infection", "General health concern"]
                 if not recommendations:
                     recommendations = [
                         "Consult a healthcare professional for proper evaluation",
-                        "Monitor symptoms and seek immediate care if they worsen",
+                        "Monitor symptoms and seek care if they worsen",
                         "Rest and stay hydrated",
                         "Call emergency services if experiencing severe symptoms"
                     ]
@@ -680,62 +655,28 @@ async def check_symptoms(request: dict, github_username: str = None):
                 return {
                     "diagnoses": diagnoses[:3],
                     "recommendations": recommendations[:4],
-                    "source": "OpenAI GPT-3.5 Medical AI"
+                    "source": "Google Gemini AI"
                 }
             
             else:
-                error_text = response.text if response.text else "Unknown error"
-                print(f"❌ OpenAI API failed: {response.status_code} - {error_text[:200]}")
+                print(f"❌ Gemini API failed: {response.status_code}")
+                raise Exception("Gemini API error")
                 
-                # Fallback system
-                return {
-                    "diagnoses": ["Common cold or flu", "Respiratory infection", "Stress-related symptoms"],
-                    "recommendations": [
-                        "Consult a healthcare professional for proper evaluation",
-                        "Rest and stay hydrated",
-                        "Monitor symptoms closely",
-                        "Seek immediate care if symptoms worsen"
-                    ],
-                    "source": "Enhanced AI Medical System (Fallback)"
-                }
-                
-        except requests.exceptions.Timeout:
-            print(f"⏰ OpenAI API timeout")
-            return {
-                "diagnoses": ["Common viral infection", "Respiratory condition", "Stress-related symptoms"],
-                "recommendations": [
-                    "Consult a healthcare professional",
-                    "Rest and stay hydrated",
-                    "Monitor symptoms",
-                    "Seek care if symptoms persist"
-                ],
-                "source": "Enhanced AI Medical System (Timeout Fallback)"
-            }
         except Exception as e:
-            print(f"❌ OpenAI API error: {str(e)}")
-            return {
-                "diagnoses": ["General health concern", "Possible infection", "Stress-related condition"],
-                "recommendations": [
-                    "Consult a healthcare professional immediately",
-                    "Rest and stay hydrated",
-                    "Monitor your symptoms closely",
-                    "Call emergency services if symptoms are severe"
-                ],
-                "source": "Enhanced AI Medical System (Error Fallback)"
-            }
+            print(f"❌ Gemini API error: {str(e)}")
     
-    else:
-        print("❌ No OpenAI API key configured")
-        return {
-            "diagnoses": ["Medical evaluation needed", "Possible infection", "Health concern"],
-            "recommendations": [
-                "Consult a healthcare professional",
-                "Rest and stay hydrated",
-                "Monitor symptoms",
-                "Seek immediate care if needed"
-            ],
-            "source": "Enhanced AI Medical System"
-        }
+    # Fallback system
+    print("🔄 Using fallback system")
+    return {
+        "diagnoses": ["Common viral infection", "Respiratory condition", "Stress-related symptoms"],
+        "recommendations": [
+            "Consult a healthcare professional for proper evaluation",
+            "Rest and stay hydrated",
+            "Monitor symptoms closely",
+            "Seek immediate care if symptoms worsen"
+        ],
+        "source": "Enhanced AI Medical System"
+    }
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
