@@ -599,16 +599,25 @@ async def check_symptoms(request: dict, github_username: str = None):
             
             url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
             
+            headers = {"Content-Type": "application/json"}
+            
             payload = {
                 "contents": [{
                     "parts": [{
-                        "text": f"You are a medical AI assistant. Patient: {age_group} {gender}. Symptoms: {symptoms_lower}. Provide: 1) Possible diagnoses (2-3 conditions) 2) Recommendations (3-4 steps). Format clearly."
+                        "text": f"Medical Analysis Request:\nPatient: {age_group} {gender}\nSymptoms: {symptoms_lower}\n\nPlease provide:\n1. Possible Diagnoses (2-3 conditions)\n2. Recommendations (3-4 actionable steps)\n\nFormat your response clearly with sections."
                     }]
-                }]
+                }],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 300
+                }
             }
             
             print(f"📤 Sending request to Gemini...")
-            response = requests.post(url, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"❌ Gemini API Error Response: {response.text[:200]}")
             
             print(f"🔍 Gemini API Status: {response.status_code}")
             
@@ -659,8 +668,9 @@ async def check_symptoms(request: dict, github_username: str = None):
                 }
             
             else:
-                print(f"❌ Gemini API failed: {response.status_code}")
-                raise Exception("Gemini API error")
+                error_text = response.text if response.text else "Unknown error"
+                print(f"❌ Gemini API failed: {response.status_code} - {error_text[:200]}")
+                raise Exception(f"Gemini API error: {response.status_code}")
                 
         except Exception as e:
             print(f"❌ Gemini API error: {str(e)}")
